@@ -66,7 +66,7 @@ RUN npm run build
 # module, so there is no native build step as there was for the old Node
 # backend.
 ###################################################
-FROM python:3.14-slim AS backend-base
+FROM python:3.15-slim AS backend-base
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
