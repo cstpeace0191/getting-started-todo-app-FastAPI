@@ -1,5 +1,5 @@
 import uuid
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Response, status
 from ..models import Item, ItemCreate, ItemUpdate
 from .. import persistence as db
@@ -9,9 +9,11 @@ router = APIRouter(tags=["items"])
 
 @router.get("/api/items", response_model=List[Item])
 @router.get("/items", response_model=List[Item], include_in_schema=False)
-async def get_items():
+async def get_items(completed: Optional[bool] = None):
     items = await db.get_items()
-    return items
+    if completed is None:
+        return items
+    return [item for item in items if item["completed"] == completed]
 
 
 @router.post("/api/items", response_model=Item, status_code=status.HTTP_200_OK)
