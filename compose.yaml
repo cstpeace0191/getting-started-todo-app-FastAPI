@@ -48,7 +48,7 @@ services:
   ###################################################
   # Service: backend
   # 
-  # This service is the Node.js server that provides the API for the app.
+  # This service is the FastAPI server that provides the API for the app.
   # When the container starts, it will use the image that results
   # from building the Dockerfile, targeting the backend-dev stage.
   #
@@ -82,7 +82,9 @@ services:
         - path: ./backend/src
           action: sync
           target: /usr/local/app/src
-        - path: ./backend/package.json
+        - path: ./backend/requirements.txt
+          action: rebuild
+        - path: ./backend/requirements-dev.txt
           action: rebuild
     labels:
       traefik.http.routers.backend.rule: Host(`localhost`) && PathPrefix(`/api`)
