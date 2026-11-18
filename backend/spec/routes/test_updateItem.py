@@ -13,7 +13,7 @@ async def test_it_updates_items_correctly():
     item_id = "1234"
     update_payload = {"name": "New title", "completed": False}
 
-    with patch("src.persistence.get_item", new_callable=AsyncMock, return_value=ITEM) as mock_get:
+    with patch("src.persistence.get_item", new_callable=AsyncMock, return_value=ITEM):
         with patch("src.persistence.update_item", new_callable=AsyncMock) as mock_update:
             result = await update_item(item_id, ItemUpdate(**update_payload))
 
@@ -28,7 +28,7 @@ async def test_update_items_api_endpoint():
     item_id = "1234"
     update_payload = {"name": "New title", "completed": False}
 
-    with patch("src.persistence.get_item", new_callable=AsyncMock, return_value=ITEM) as mock_get:
+    with patch("src.persistence.get_item", new_callable=AsyncMock, return_value=ITEM):
         with patch("src.persistence.update_item", new_callable=AsyncMock) as mock_update:
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as ac:
