@@ -1,0 +1,79 @@
+name: Promote
+
+on:
+  workflow_call:                      # publish.yml 이 main 빌드 후 dev 로 호출
+    inputs:
+      target_env: { type: string, required: true }
+      image_tag: { type: string, required: true }
+    secrets:
+      PROMOTER_APP_KEY: { required: true }
+  workflow_dispatch:                  # stg · prod 는 사람이 SHA 를 지정해 승격
+    inputs:
+      target_env:
+        description: 승격할 환경
+        type: choice
+        options: [stg, prod]
+        required: true
+      image_tag:
+        description: 승격할 이미지 태그 (dev 에서 검증한 커밋 SHA 40자리)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promote-${{ inputs.target_env }}
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TARGET_ENV: ${{ inputs.target_env }}
+      IMAGE_TAG: ${{ inputs.image_tag }}
+      IMAGE: ghcr.io/${{ github.repository }}
+    steps:
+      - name: Validate inputs
+        run: |
+          [[ "$TARGET_ENV" =~ ^(dev|stg|prod)$ ]] || { echo "::error::target_env 는 dev|stg|prod"; exit 1; }
+          [[ "$IMAGE_TAG" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::image_tag 는 커밋 SHA 40자리"; exit 1; }
+      - uses: actions/create-github-app-token@v3
+        id: app-token
+        with:
+          app-id: ${{ vars.PROMOTER_APP_ID }}
+          private-key: ${{ secrets.PROMOTER_APP_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: todo-app-config
+          permission-contents: write          # 토큰 권한을 필요한 만큼만
+          permission-pull-requests: write
+      - uses: actions/checkout@v7       # zizmor: ignore[artipacked]  (다음 단계의 git push 에 자격 증명 필요)
+        with:
+          repository: ${{ github.repository_owner }}/todo-app-config
+          token: ${{ steps.app-token.outputs.token }}
+          path: config
+      - name: Update newTag with yq
+        working-directory: config
+        run: |
+          yq -i '(.images[] | select(.name == strenv(IMAGE)) | .newTag) = strenv(IMAGE_TAG)' \
+            "overlays/${TARGET_ENV}/kustomization.yaml"
+          git diff --stat
+      - name: Open promotion PR
+        working-directory: config
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          BRANCH="promote/${TARGET_ENV}-${IMAGE_TAG:0:7}"
+          git config user.name  "todo-promoter[bot]"
+          git config user.email "todo-promoter[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git commit -am "deploy(${TARGET_ENV}): ${IMAGE##*/}@${IMAGE_TAG:0:7}"
+          git push -u origin "$BRANCH"
+          gh pr create --base main --head "$BRANCH" \
+            --title "deploy(${TARGET_ENV}): ${IMAGE_TAG:0:7}" \
+            --body "App 커밋: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${IMAGE_TAG}" \
+            --label "env:${TARGET_ENV}"
+          if [ "$TARGET_ENV" = "dev" ]; then
+            gh pr merge --squash --auto --delete-branch   # dev 는 CI 통과 시 자동 병합
+          fi

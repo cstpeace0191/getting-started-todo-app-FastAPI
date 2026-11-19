@@ -54,7 +54,7 @@ jobs:
 
   promote-dev:                        # main 빌드 → Config 저장소 dev 승격 PR (재사용 워크플로)
     needs: image
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && vars.PROMOTER_APP_ID != ''
     permissions:
       contents: read
     uses: ./.github/workflows/promote.yml
